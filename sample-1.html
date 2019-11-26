@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>THEOplayer 2.X: Getting Started</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" type="text/css" href='//cdn.theoplayer.com/dash/theoplayer/ui.css'>
+</head>
+<body>
+
+<div class="theoplayer-container video-js theoplayer-skin"></div>
+
+<script type='text/javascript' src='//cdn.theoplayer.com/dash/theoplayer/THEOplayer.js'></script>
+
+<script>
+
+    function setMediaSessionMetadata(metadata) {
+        if ('mediaSession' in navigator) {
+            navigator.mediaSession.metadata = new MediaMetadata({
+                title: metadata.title,
+                artist: metadata.artist,
+                album: metadata.album,
+                artwork: metadata.artwork
+            });
+        }
+    }
+
+    function registerMediaSessionActionHandlers(player) {
+        if ('mediaSession' in navigator) {
+            navigator.mediaSession.setActionHandler('play', function () {
+                player.play();
+            });
+            navigator.mediaSession.setActionHandler('pause', function () {
+                player.pause();
+            });
+            navigator.mediaSession.setActionHandler('seekbackward', function (details) {
+                console.log('seekbackward', details);
+                if (player.currentTime > 10) {
+                    player.currentTime = player.currentTime - 10;
+                }
+            });
+            navigator.mediaSession.setActionHandler('seekforward', function (details) {
+                console.log('seekforward', details);
+                if ((player.currentTime+10) < player.duration) {
+                    player.currentTime = player.currentTime + 10;
+                }
+            });
+            navigator.mediaSession.setActionHandler('previoustrack', function (details) {
+                console.log('previoustrack', details, songInfo.startPrevious);
+                if (songInfo.startPrevious) {
+                    player.currentTime = songInfo.startPrevious;
+                }
+            });
+            navigator.mediaSession.setActionHandler('nexttrack', function (details) {
+                console.log('nexttrack', details, songInfo.duration);
+                player.currentTime = songInfo.start + songInfo.duration;
+            });
+            try {
+                navigator.mediaSession.setActionHandler('skipad', function() {
+                    console.log('skipad', details);
+                });
+            } catch(error) {
+                // console.log(error);
+            }
+            try {
+                navigator.mediaSession.setActionHandler('stop', function (details) {
+                    console.log('stop', details);
+                    player.stop();
+                    resetMediaSession();
+
+                });
+            } catch(error) {
+                // console.log(error);
+            }
+            try {
+                navigator.mediaSession.setActionHandler('seekto', function (details) {
+                    console.log(details);
+                });
+            } catch(error) {
+                // console.log(error);
+            }
+
+        }
+    }
+
+    function pauseMediaSession() {
+        navigator.mediaSession.playbackState = "paused";
+        if (navigator.mediaSession.setPositionState) {
+            navigator.mediaSession.setPositionState(null);
+        }
+    }
+
+    function resetMediaSession() {
+        navigator.mediaSession.playbackState = "none";
+        if (navigator.mediaSession.setPositionState) {
+            navigator.mediaSession.setPositionState(null);
+        }
+        navigator.mediaSession.metadata = null;
+    }
+
+    function trackMediaSessionStates(player) {
+        if ('mediaSession' in navigator) {
+            player.addEventListener('playing', function () {
+                navigator.mediaSession.playbackState = "playing";
+                if (navigator.mediaSession.setPositionState) {
+                    navigator.mediaSession.setPositionState({
+                        duration: player.duration,
+                        playbackRate: player.playbackRate,
+                        position: player.currentTime
+                    });
+                }
+            });
+            player.addEventListener(['pause', 'waiting'], function () {
+                pauseMediaSession();
+            });
+            player.addEventListener(['ended', 'destroy'], function() {
+                resetMediaSession();
+            })
+        }
+    }
+
+    var element = document.querySelector('.theoplayer-container');
+    var player = new THEOplayer.Player(element, {
+        libraryLocation: '//cdn.theoplayer.com/dash/theoplayer/'
+    });
+    registerMediaSessionActionHandlers(player);
+    trackMediaSessionStates(player);
+
+    player.textTracks.addEventListener('addtrack', handleTrackCreation);
+
+    player.source = {
+        sources: [{
+            type : 'application/x-mpegurl',
+            src: 'https://cdn.theoplayer.com/video/indexcom/index.m3u8'
+        }]
+    };
+
+    function handleTrackCreation (e0) {
+        e0.track.cues.forEach(function (cue) {
+            cue.addEventListener('exit', exitListener)
+        });
+        // detect cues being added to the track
+        e0.track.addEventListener('addcue', function(e1){
+            // detect a cue being shown from a track
+            e1.cue.addEventListener('exit', exitListener);
+
+        })
+    }
+
+    var songInfo = {
+        duration: null,
+        album: null,
+        year: null,
+        artwork: null,
+        title: null,
+        artist: null,
+        a: {
+            ach: null,
+            asr: null,
+            adr: null,
+            apg: null
+        },
+        tflt: null,
+        start: null,
+        startPrevious: null
+    };
+
+    function exitListener(e2) {
+        var cue = e2.cue,
+            content = cue.content;
+        // check if the ID3 cue ID is correct, and if the mapped text is a URL
+
+        switch (content.id) {
+            case 'TLEN':
+                songInfo.duration = hmsToSeconds(content.text);
+                break;
+            case 'TALB':
+                songInfo.album = content.text;
+                break;
+            case 'TDRC':
+                songInfo.year = content.text;
+                break;
+            case 'WXXX':
+                songInfo.artwork = [{src: content.url.replace('http://www.indexcom.com/img/rdj/5', '//cdn.theoplayer.com/demos/id3/images')}]
+                break;
+            case 'TIT2':
+                songInfo.title = content.text;
+                break;
+            case 'TPE1':
+                songInfo.artist = content.text;
+                break;
+            case 'TXXX':
+                switch (content.description) {
+                    case 'ach':
+                        songInfo.a.ach = 'ACH:' + content.text;
+                        break;
+                    case 'asr':
+                        songInfo.a.asr = 'ASR:' + content.text;
+                        break;
+                    case 'adr':
+                        songInfo.a.adr = 'ADR:' + content.text;
+                        break;
+                    case 'apg':
+                        songInfo.a.apg = 'APG:' + content.text;
+                        songInfo.startPrevious = songInfo.start;
+                        songInfo.start = player.currentTime;
+                        setMediaSessionMetadata(songInfo);
+                }
+                break;
+            case 'TFLT':
+                songInfo.tflt = content.text;
+        }
+    }
+
+    function hmsToSeconds(hms) {
+        if (hms.length == 5) {
+            hms = "00:"+hms;
+        }
+        var a = hms.split(':'); // split it at the colons
+        var seconds = (+a[0]) * 60 * 60 + (+a[1]) * 60 + (+a[2]);
+        return seconds;
+    }
+
+</script>
+
+</body>
+</html>
