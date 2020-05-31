@@ -1,6 +1,6 @@
 # Media Session API
 
-This repository contains code samples demonstrating how to implement the [Media Session API](https://w3c.github.io/mediasession).
+This repository contains code samples demonstrating how to implement the [Media Session API](https://w3c.github.io/mediasession). This repository is linked to an article on [how to use the Media Session API](https://ottball.com/media-session-api/) as published on ottball.com.
 
 ## sample-1.html
 
